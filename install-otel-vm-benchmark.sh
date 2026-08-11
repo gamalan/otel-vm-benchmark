@@ -64,8 +64,11 @@ DO_TEST=0
 UNINSTALL=0
 PURGE=0
 
-log()  { echo "[install] $*"; }
-die()  { echo "!! $*" >&2; exit 1; }
+log() { echo "[install] $*"; }
+die() {
+	echo "!! $*" >&2
+	exit 1
+}
 
 usage() { sed -n '2,50p' "${BASH_SOURCE[0]}" | grep -v '^#' | head -40; }
 
@@ -76,7 +79,10 @@ usage() { sed -n '2,50p' "${BASH_SOURCE[0]}" | grep -v '^#' | head -40; }
 # fragment to merge by hand instead of touching the file.
 wire_collector() {
 	local cfg="$1" bak frag_changed=0
-	[ -f "$cfg" ] || { log "!! collector config not found: $cfg"; return 1; }
+	[ -f "$cfg" ] || {
+		log "!! collector config not found: $cfg"
+		return 1
+	}
 	bak="${cfg}.bak.$(date +%Y%m%d%H%M%S)"
 	cp -a "$cfg" "$bak"
 	log "collector config backed up: $bak"
@@ -96,7 +102,7 @@ wire_collector() {
 					next
 				}
 				{ print }
-			' "$cfg" > "${cfg}.tmp" && mv "${cfg}.tmp" "$cfg"
+			' "$cfg" >"${cfg}.tmp" && mv "${cfg}.tmp" "$cfg"
 			frag_changed=1
 			log "added 'otlp' receiver (http 0.0.0.0:4318) to $cfg"
 		else
@@ -122,7 +128,7 @@ wire_collector() {
 					next
 				}
 				{ print }
-			' "$cfg" > "${cfg}.tmp" && mv "${cfg}.tmp" "$cfg"
+			' "$cfg" >"${cfg}.tmp" && mv "${cfg}.tmp" "$cfg"
 			frag_changed=1
 			log "added 'otlp' to the metrics pipeline in $cfg"
 		else
@@ -164,23 +170,71 @@ FRAG
 # ---------------- arg parsing ----------------
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--endpoint)          ENDPOINT="$2"; shift 2 ;;
-		--headers)           HEADERS="$2"; shift 2 ;;
-		--provider)          PROVIDER="$2"; shift 2 ;;
-		--size)              SIZE="$2"; shift 2 ;;
-		--iperf3-host)       IPERF3_HOST="$2"; shift 2 ;;
-		--ob-host)           OB_HOST="$2"; shift 2 ;;
-		--ob-user)           OB_USER="$2"; shift 2 ;;
-		--ob-pass)           OB_PASS="$2"; shift 2 ;;
-		--collector-config)  COLLECTOR_CONFIG="$2"; shift 2 ;;
-		--source)            SOURCE_DIR="$2"; shift 2 ;;
-		--no-packages)       DO_PACKAGES=0; shift ;;
-		--no-timer)          DO_TIMER=0; shift ;;
-		--test)              DO_TEST=1; shift ;;
-		--uninstall)         UNINSTALL=1; shift ;;
-		--purge)             PURGE=1; shift ;;
-		-h|--help)           usage; exit 0 ;;
-		*) die "unknown option: $1 (see --help)" ;;
+	--endpoint)
+		ENDPOINT="$2"
+		shift 2
+		;;
+	--headers)
+		HEADERS="$2"
+		shift 2
+		;;
+	--provider)
+		PROVIDER="$2"
+		shift 2
+		;;
+	--size)
+		SIZE="$2"
+		shift 2
+		;;
+	--iperf3-host)
+		IPERF3_HOST="$2"
+		shift 2
+		;;
+	--ob-host)
+		OB_HOST="$2"
+		shift 2
+		;;
+	--ob-user)
+		OB_USER="$2"
+		shift 2
+		;;
+	--ob-pass)
+		OB_PASS="$2"
+		shift 2
+		;;
+	--collector-config)
+		COLLECTOR_CONFIG="$2"
+		shift 2
+		;;
+	--source)
+		SOURCE_DIR="$2"
+		shift 2
+		;;
+	--no-packages)
+		DO_PACKAGES=0
+		shift
+		;;
+	--no-timer)
+		DO_TIMER=0
+		shift
+		;;
+	--test)
+		DO_TEST=1
+		shift
+		;;
+	--uninstall)
+		UNINSTALL=1
+		shift
+		;;
+	--purge)
+		PURGE=1
+		shift
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	*) die "unknown option: $1 (see --help)" ;;
 	esac
 done
 
@@ -251,12 +305,12 @@ log "installed $INSTALL_DIR/otel-vm-benchmark.sh"
 	echo "VM_PROVIDER=$PROVIDER"
 	echo "VM_SIZE=$SIZE"
 	[ -n "$IPERF3_HOST" ] && echo "IPERF3_HOST=$IPERF3_HOST"
-} > "$ENV_FILE"
+} >"$ENV_FILE"
 chmod 600 "$ENV_FILE"
 log "wrote $ENV_FILE"
 
 # ---------------- 4. systemd units ----------------
-cat > "$SERVICE_UNIT" <<'UNIT'
+cat >"$SERVICE_UNIT" <<'UNIT'
 [Unit]
 Description=VM benchmark + degradation telemetry -> OpenTelemetry
 After=network-online.target
@@ -270,7 +324,7 @@ SyslogIdentifier=otel-vm-benchmark
 TimeoutStartSec=600
 UNIT
 
-cat > "$TIMER_UNIT" <<'UNIT'
+cat >"$TIMER_UNIT" <<'UNIT'
 [Unit]
 Description=Run VM benchmark daily
 
@@ -304,9 +358,9 @@ if command -v curl >/dev/null 2>&1; then
 	code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
 		-X POST -H 'Content-Type: application/json' -d '{}' "$ENDPOINT" 2>/dev/null || true)"
 	case "$code" in
-		200|202|204|400|404|405|413) log "endpoint reachable (HTTP $code on $ENDPOINT)" ;;
-		"") log "warning: no HTTP response from $ENDPOINT — is the collector/OpenObserve up?" ;;
-		*)  log "warning: unexpected HTTP $code from $ENDPOINT" ;;
+	200 | 202 | 204 | 400 | 404 | 405 | 413) log "endpoint reachable (HTTP $code on $ENDPOINT)" ;;
+	"") log "warning: no HTTP response from $ENDPOINT — is the collector/OpenObserve up?" ;;
+	*) log "warning: unexpected HTTP $code from $ENDPOINT" ;;
 	esac
 fi
 
@@ -327,4 +381,3 @@ echo "  manual:  systemctl start $SERVICE_NAME"
 if [ -n "$COLLECTOR_CONFIG" ]; then
 	echo "  note:    restart your collector to pick up the otlp receiver (config backed up in $COLLECTOR_CONFIG.bak.*)"
 fi
-
