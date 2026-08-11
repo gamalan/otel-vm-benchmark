@@ -58,6 +58,12 @@ and you can correlate `bench.*` against the always-on `host.*` (CPU, memory, dis
 apt install sysbench fio iperf3   # iperf3 only needed for the network benchmark
 ```
 
+> **Network benchmark needs a server elsewhere.** The script runs iperf3 in **client**
+> mode only — it connects *out* to a server. You must run `iperf3 -s` on a **separate host**
+> (the VM being benchmarked needs no daemon) and tell the VM about it with
+> `--iperf3-host HOST` (installer) or `IPERF3_HOST` (env). Without it the network
+> benchmark is skipped.
+
 No collector-side changes are required for the script itself — it only speaks OTLP/HTTP.
 
 ## Install — systemd + existing OTel pipeline (recommended)
@@ -98,7 +104,7 @@ Mode A — direct to OpenObserve, no collector:
 | `--endpoint URL` | `http://127.0.0.1:4318/v1/metrics` | OTLP/HTTP endpoint (existing collector) |
 | `--headers "H: v"` | — | extra headers, pipe-separated |
 | `--provider` / `--size` | `unknown` | `vm.provider` / `vm.size` attributes |
-| `--iperf3-host HOST` | — | enable the network benchmark |
+| `--iperf3-host HOST` | — | enable the network benchmark (iperf3 **server on a separate host**; client mode) |
 | `--ob-host` / `--ob-user` / `--ob-pass` | — | Mode A convenience: build OpenObserve endpoint + auth |
 | `--collector-config PATH` | — | merge `otlp` receiver into existing collector YAML |
 | `--source DIR` | script's dir | where `otel-vm-benchmark.sh` lives |
@@ -242,7 +248,7 @@ systemctl daemon-reload && systemctl enable --now vm-benchmark.timer
 | `OTLP_HEADERS` | — | extra headers, **pipe-separated**: `Authorization: Basic xyz` |
 | `VM_PROVIDER` | `unknown` | attribute, e.g. `hetzner` / `vultr` / `digitalocean` |
 | `VM_SIZE` | `unknown` | attribute, e.g. `cpx31` / `s-4vcpu-8gb` |
-| `IPERF3_HOST` | — | iperf3 server address; unset = skip network bench |
+| `IPERF3_HOST` | — | iperf3 **server on a separate host**; unset = skip network bench |
 | `SKIP_CPU` / `SKIP_MEM` / `SKIP_DISK` / `SKIP_NET` | `0` | set to `1` to skip a benchmark |
 | `RUN_ID` | timestamp | set internally; override for custom run labels |
 
