@@ -294,4 +294,4 @@ curl -i -X POST "$OTLP_ENDPOINT" \
 | `push failed: HTTP Error 401/403` | wrong `OTLP_HEADERS` — OpenObserve needs `Authorization: Basic base64(user:pass)` |
 | `sysbench not found — skipping...` | `apt install sysbench fio` |
 | no `cpu.*` attrs in OpenObserve | attributes are per-metric labels — filter by them, they are not separate streams |
-| metrics missing from dashboard | OpenObserve only shows streams once first data arrives; wait for the first hourly run |
+| metrics missing from dashboard | OpenObserve only shows streams once first data arrives; wait for the first run (`systemctl start otel-vm-benchmark`) or check `journalctl -u otel-vm-benchmark` |
