@@ -60,6 +60,56 @@ apt install sysbench fio iperf3   # iperf3 only needed for the network benchmark
 
 No collector-side changes are required for the script itself — it only speaks OTLP/HTTP.
 
+## Install — systemd + existing OTel pipeline (recommended)
+
+`install-otel-vm-benchmark.sh` does the whole setup on a VM: installs `sysbench`/`fio`/`iperf3`,
+copies the benchmark script to `/opt/otel-vm-benchmark/`, writes `/etc/otel-vm-benchmark.env`,
+installs a systemd **daily** timer, and — optionally — wires the OTLP/HTTP receiver into your
+existing collector config so the bench metrics join the current pipeline (backed up first,
+diff shown, `otelcol validate` when available).
+
+```bash
+# 1. copy installer + script to the VM
+scp otel-vm-benchmark.sh install-otel-vm-benchmark.sh root@vm:/root/
+ssh root@vm
+
+# 2. Mode B (default) — push to the OTel Collector already on this VM
+./install-otel-vm-benchmark.sh --provider hetzner --size cpx31
+
+# ...or wire the existing collector config at the same time
+./install-otel-vm-benchmark.sh --provider hetzner --size cpx31 \
+  --collector-config /etc/otel/collector.yaml
+
+# 3. verify
+systemctl list-timers otel-vm-benchmark.timer
+systemctl start otel-vm-benchmark          # manual run
+journalctl -u otel-vm-benchmark -f          # watch logs
+```
+
+Mode A — direct to OpenObserve, no collector:
+
+```bash
+./install-otel-vm-benchmark.sh --ob-host 10.0.0.5:5081 --ob-user root@corp --ob-pass secret \
+  --provider hetzner --size cpx31
+```
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--endpoint URL` | `http://127.0.0.1:4318/v1/metrics` | OTLP/HTTP endpoint (existing collector) |
+| `--headers "H: v"` | — | extra headers, pipe-separated |
+| `--provider` / `--size` | `unknown` | `vm.provider` / `vm.size` attributes |
+| `--iperf3-host HOST` | — | enable the network benchmark |
+| `--ob-host` / `--ob-user` / `--ob-pass` | — | Mode A convenience: build OpenObserve endpoint + auth |
+| `--collector-config PATH` | — | merge `otlp` receiver into existing collector YAML |
+| `--source DIR` | script's dir | where `otel-vm-benchmark.sh` lives |
+| `--no-packages` | — | skip apt/dnf/apk package install |
+| `--no-timer` | — | install service only, no timer |
+| `--test` | — | run the benchmark once after install to verify the push |
+| `--uninstall` / `--purge` | — | remove systemd units + env file (and `/opt` copy) |
+
+All runtime config lives in `/etc/otel-vm-benchmark.env` — edit it (or re-run the installer with
+new flags) to change the endpoint/provider later.
+
 ## Quick start
 
 ### Mode A — direct to OpenObserve
@@ -144,10 +194,13 @@ receivers:
 
 ## Scheduling
 
+> Default: the installer above sets up a **daily** systemd timer. Manual setup below for reference.
+
 ### Cron
 
 ```bash
-0 * * * * OTLP_ENDPOINT="..." OTLP_HEADERS="..." VM_PROVIDER="hetzner" VM_SIZE="cpx31" \
+# daily at 02:00 (if you prefer cron over the systemd timer)
+0 2 * * * OTLP_ENDPOINT="..." OTLP_HEADERS="..." VM_PROVIDER="hetzner" VM_SIZE="cpx31" \
   /opt/otel-vm-benchmark/otel-vm-benchmark.sh >> /var/log/vm-benchmark.log 2>&1
 ```
 
@@ -160,9 +213,7 @@ receivers:
 Description=VM benchmark -> OTel metrics
 [Service]
 Type=oneshot
-Environment=OTLP_ENDPOINT=http://127.0.0.1:4318/v1/metrics
-Environment=VM_PROVIDER=hetzner
-Environment=VM_SIZE=cpx31
+EnvironmentFile=/etc/otel-vm-benchmark.env
 ExecStart=/opt/otel-vm-benchmark/otel-vm-benchmark.sh
 ```
 
@@ -170,10 +221,11 @@ ExecStart=/opt/otel-vm-benchmark/otel-vm-benchmark.sh
 
 ```ini
 [Unit]
-Description=Run VM benchmark hourly
+Description=Run VM benchmark daily
 [Timer]
-OnCalendar=hourly
+OnCalendar=daily
 Persistent=true
+RandomizedDelaySec=1h
 [Install]
 WantedBy=timers.target
 ```
